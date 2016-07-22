@@ -121,7 +121,7 @@ hosmer3 <- data.frame(hosmer1, fit1$cluster)
 hosmer <- data.frame(hosmer, fit1$cluster) 
 head(hosmer3, 5)
 
-#Append clusters to full and stripped down datasets
+#Look at appended clusters in full and stripped down datasets
 cluster1 <- hosmer3[which(hosmer3$fit1.cluster=='1'),]
 cluster2 <- hosmer3[which(hosmer3$fit1.cluster=='2'),]   
 cluster3 <- hosmer3[which(hosmer3$fit1.cluster=='3'),]
