@@ -108,8 +108,8 @@ hosmer2 <- scale(hosmer1)
 head(hosmer2)
 
 #Elbow plot to determine the number of clusters
-wss <- (nrow(hosmer2)-1)*sum(apply(hosmer1,2,var))
-for (i in 2:15) wss[i] <- sum(kmeans(hosmer1,
+wss <- (nrow(hosmer2)-1)*sum(apply(hosmer2,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(hosmer2,
                                      centers=i)$withinss)
 plot(1:15, wss, type="b", xlab="Number of Clusters",
      ylab="Within groups sum of squares", main = "Elbow Plot for No. of Clusters")
