@@ -108,6 +108,7 @@ hosmer2 <- scale(hosmer1)
 head(hosmer2)
 
 #Elbow plot to determine the number of clusters
+hosmer2 <- scale(hosmer2)
 wss <- (nrow(hosmer2)-1)*sum(apply(hosmer2,2,var))
 for (i in 2:15) wss[i] <- sum(kmeans(hosmer2,
                                      centers=i)$withinss)
