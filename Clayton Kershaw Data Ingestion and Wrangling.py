@@ -293,8 +293,3 @@ print(bbref_df)
 pitchfx_df.to_csv('kershaw_pitchfx.csv')
 bbref_df.to_csv('kershaw_bbref.csv')
 
-#Next project...
-#Delete excess rows from pitchfx data
-#Munge data frames
-#Analysis data
-
