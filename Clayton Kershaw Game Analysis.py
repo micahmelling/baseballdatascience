@@ -269,11 +269,3 @@ plt.bar(range(X.shape[1]), importances[indices],
 plt.xticks(range(X.shape[1]), indices)
 plt.xlim([-1, X.shape[1]])
 plt.show()
-
-
-
-
-# In[ ]:
-
-
-
