@@ -1,10 +1,13 @@
 ##### Predicting Noah Syndergaard's Pitches #####
 
-#Import libraries for data ingestion and wrangling
+#Import libraries for data ingestion, wrangling, and visualization
 from bs4 import BeautifulSoup
 import requests
 import pandas as pd
 import numpy as np
+import seaborn as sns
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 #Import libraries for data pre-processing, machine learning, and model evaluation
 from sklearn.cross_validation import train_test_split
@@ -15,6 +18,8 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report
 from sklearn.cross_validation import cross_val_score
+from sklearn.metrics import confusion_matrix
+from sklearn.grid_search import GridSearchCV
 
 from sklearn import svm
 from sklearn.ensemble import RandomForestClassifier
@@ -25,16 +30,19 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 
+#Change display settings for viewing data
+pd.set_option("display.max_columns", 900)
+pd.set_option("display.max_rows", 900)
+
 #Define URL that contains game IDS and the base URL for the pitcher
 url = "http://www.brooksbaseball.net/tabs.php?player=592789&p_hand=-1&ppos=-1&cn=200&compType=none&gFilt=&time=month&minmax=ci&var=gl&s_type=2&startDate=03/30/2007&endDate=02/27/2017&balls=-1&strikes=-1&b_hand=-1"
-player = "http://www.brooksbaseball.net/pfxVB/tabdel_expanded.php?pitchSel=592789&game="
 
 #Scrape the data
-def webscraper(url):
+def webscraper(x):
     print("Initializing Webscraper")
     print("Creating URLs")  
     
-    r = requests.get(url)
+    r = requests.get(x)
     data = r.text
     soup = BeautifulSoup(data)
     
@@ -82,14 +90,14 @@ def webscraper(url):
     pitchfx_df = pd.concat(df_list)
     
     print("Success! Collected {} rows of Pitch FX data.".format(pitchfx_df.shape[0]))
-    return pitchfx_df
+    return
 
 #Wrangle the data    
-def wrangling(pitchfx_df):
+def wrangling(x):
     print("Wrangling the Pitch FX data.")    
     
     global df    
-    df = pitchfx_df[[6, 9, 15, 16, 18, 19, 20, 23, 26]]
+    df = x[[6, 9, 15, 16, 18, 19, 20, 23, 26]]
     
     df.rename(columns={6: 'Batter', 9: 'Pitch_Outcome', 15: 'Pitch_Type', 16: 'Location', 
                        18: 'Batter_Stance', 19: 'Strikes', 20: 'Balls', 23: 'Outcome', 
@@ -112,10 +120,10 @@ def wrangling(pitchfx_df):
     df = df.dropna()
 
     print("Success! The final dataset contains {} rows of data.".format(df.shape[0]))
-    return df
+    return
     
 #Split data into training and test sets
-def data_prep(df):
+def data_prep(x):
     print("Preparing data for machine learning.")    
     
     global X
@@ -125,7 +133,7 @@ def data_prep(df):
     global Y_train
     global Y_test    
        
-    X = df[['Batter', 'Pitch_Outcome', 'Location', 'Batter_Stance', 'Outcome', 'Inning']]
+    X = x[['Batter', 'Pitch_Outcome', 'Location', 'Batter_Stance', 'Outcome', 'Inning']]
     X = pd.get_dummies(X)
           
     Y = df[['Pitch_Type']]
@@ -140,10 +148,10 @@ def data_prep(df):
     return
 
 #Run univariate feature selection
-def feature_selection(X_train, Y_train):
+def feature_selection(x, y):
     print("Selecting top features.")
-    test = SelectKBest(k = 4)
-    fit = test.fit(X_train, Y_train)
+    test = SelectKBest(k = 10)
+    fit = test.fit(x, y)
 
     print("Most predictive features.")
     selected_vars = fit.get_support()
@@ -151,203 +159,191 @@ def feature_selection(X_train, Y_train):
     cols = pd.DataFrame(cols)
     selected_vars = pd.DataFrame(selected_vars)
     selected = pd.concat([cols, selected_vars], axis = 1)
-    print(selected)
+    print (selected)
     return 
 
 #Conduct grid search to optimize hyperparameters
 def grid_search():
     print("Optimizing hyperparamters for SVM")
-    svm_grid = [{'kernel': ['rbf'], 'gamma': [1e-3, 1e-4],
-                     'C': [1, 10, 100, 1000]},
-                    {'kernel': ['linear'], 'C': [1, 10, 100, 1000]}]
+    svm_grid = [{'kernel': ['rbf', 'poly'], 'gamma': [0.001, 0.01, 0.01, 0.1, 1, 10, 100],
+                     'C': [0.001, 0.01, 0.01, 0.1, 1, 10, 100]},
+                    {'kernel': ['linear'], 'C': [0.001, 0.01, 0.01, 0.1, 1, 10, 100]}]
     svm_model = svm.SVC()
     supvec = GridSearchCV(svm_model, svm_grid, cv=5, scoring = 'f1')
     supvec.fit(X_train, Y_train)
     print("Best parameters set found for SVM:")
     print(supvec.best_estimator_)
-    print()
+    print
     
     print("Optimizing hyperparamters for Random Forest")
-    rf_grid = {"max_depth": [3, None],
-              "n_estimators": [10, 50, 100],
+    rf_grid = {"max_depth": [2, 3, 4, 5, 6, 7],
+              "n_estimators": [1000],
               "max_features": ["auto", "sqrt", "log2"],
-              "min_samples_split": [1, 3, 10],
-              "min_samples_leaf": [1, 3, 10],
-              "bootstrap": [True, False],
               "criterion": ["gini", "entropy"]}
     rf_model = RandomForestClassifier()
     rf = GridSearchCV(rf_model, rf_grid, cv=5, scoring = 'f1')
     rf.fit(X_train, Y_train)
     print("Best parameters set found for Random Forest:")
     print(rf.best_estimator_)
-    print()
+    print
     
-    #Change grid
     print("Optimizing hyperparamters for AdaBoost")
-    ada_grid = {"max_depth": [3, None],
-              "n_estimators": [10, 50, 100],
-              "max_features": ["auto", "sqrt", "log2"],
-              "min_samples_split": [1, 3, 10],
-              "min_samples_leaf": [1, 3, 10],
-              "bootstrap": [True, False],
-              "criterion": ["gini", "entropy"]}
+    ada_grid = {"learning_rate": [0.001, 0.01, 0.01, 0.1, 1, 10, 10],
+                "n_estimators": [10, 25, 50, 75, 100, 200]}
     ada_model = AdaBoostClassifier()
     ada = GridSearchCV(ada_model, ada_grid, cv=5, scoring = 'f1')
     ada.fit(X_train, Y_train)
     print("Best parameters set found for AdaBoost:")
     print(ada.best_estimator_)
-    print()
+    print
     
-    #Change grid 
     print("Optimizing hyperparamters for Extra Trees")
-    trees_grid = {"max_depth": [3, None],
-              "n_estimators": [10, 50, 100],
+    trees_grid = {"max_depth": [3, 4, 5, 6],
+              "n_estimators": [1000],
               "max_features": ["auto", "sqrt", "log2"],
-              "min_samples_split": [1, 3, 10],
-              "min_samples_leaf": [1, 3, 10],
-              "bootstrap": [True, False],
               "criterion": ["gini", "entropy"]}
     trees_model = ExtraTreesClassifier()
     trees = GridSearchCV(ada_model, trees_grid, cv=5, scoring = 'f1')
     trees.fit(X_train, Y_train)
     print("Best parameters set found for Extra Trees:")
     print(trees.best_estimator_)
-    print()    
+    print   
     
-    #Change grid
     print("Optimizing hyperparamters for Gradient Boost")
     print("Optimizing hyperparamters for Extra Trees")
-    gradient_grid = {"max_depth": [3, None],
-              "n_estimators": [10, 50, 100],
-              "max_features": ["auto", "sqrt", "log2"],
-              "min_samples_split": [1, 3, 10],
-              "min_samples_leaf": [1, 3, 10],
-              "bootstrap": [True, False],
-              "criterion": ["gini", "entropy"]}
+    gradient_grid = {"learning_rate": [0.001, 0.01, 0.01, 0.1, 1, 10, 10],
+                "n_estimators": [10, 25, 50, 75, 100, 200],
+                "max_depth": [2, 3, 4, 5, 6]}
     gradient_model = GradientBoostingClassifier()
     gradient = GridSearchCV(gradient_model, trees_grid, cv=5, scoring = 'f1')
     gradient.fit(X_train, Y_train)
     print("Best parameters set found for Gradient Boosting:")
     print(gradient.best_estimator_)
-    print()    
+    print  
            
     print("Optimizing hyperparamters for K Nearest Neighbors Model")   
     knn_grid = {"n_neighbors": [3, 5, 7, 9],
               "weights": ["uniform", "distance"],
-              "algorithm": ["ball_tree", "kd_tree", "brute", "auto"],
-              "leaf_size": [30, 40, 50]}
+              "metric": ["euclidean", "manhattan", "minkowski", "mahalanobis"]}
     knn_model = KNeighborsClassifier()
     knn = GridSearchCV(knn_model, knn_grid, cv=5, scoring = 'f1')
     knn.fit(X_train, Y_train)
     print("Best parameters set found for KNN:")
     print(knn.best_estimator_)
-    print()
+    print
     
     print("Optimizing hyperparamters for Logistic Regression Model")
     log_grid = {"penalty": ["l1", "l2"],
-              "C": [1, 10, 100],
-              "fit_intercept": [False, True],
-              "intercept_scaling": [1, 10, 100],
-              "solver": ["newton-cg", "lbfgs", "liblinear"]}
+              "C": [0.001, 0.01, 0.01, 0.1, 1, 10, 100],
+              "fit_intercept": [False, True]}
     log_model = LogisticRegression()
     log = GridSearchCV(log_model, log_grid, cv=5, scoring = 'f1')
     log.fit(X_train, Y_train)
     print("Best parameters set found for Logisitc Regression:")
-    print()
+    print
     print(log.best_estimator_)
-    print()
     
     return
     
 #Run dummy models to baseline performance
 def dummy_model():
+    print("Running dummy models")    
+    
     random = DummyClassifier(strategy = 'uniform', random_state = 0)
     random_model = random.fit(X_train, Y_train)
-    random_predict = SVM_clf.predict(X_test)
-    print('F1 Score for random model:")
-    print(f1_score(Y_test, random_predict, average=None))
-    print()
+    random_predict = random_model.predict(X_test)
+    print('F1 Score for random model:')
+    print(f1_score(Y_test, random_predict, average='binary'))
+    print
     print('Accuracy for random model:')
     print(accuracy_score(Y_test, random_predict))
+    print
     
     mostfreq = DummyClassifier(strategy = 'most_frequent', random_state = 0)
     mostfreq_model = mostfreq.fit(X_train, Y_train)
-    print('F1 Score for most frequent class model:")
-    print(f1_score(Y_test, mostfreq_predict, average=None))
-    print()
+    mostfreq_predict = mostfreq_model.predict(X_test)
+    print('F1 Score for most frequent class model:')
+    print(f1_score(Y_test, mostfreq_predict, average='binary'))
+    print
     print('Accuracy for most frequent class model:')
     print(accuracy_score(Y_test, mostfreq_predict))
     return
     
 #Evaluate models using cross-validation
 def model_evaluation():
-    #Need to edit each model based on gridsearch
-    #Need to improve print functions
+    print("Training and cross validating models")
 
     SVM_clf = svm.SVC()
     SVM_clf.fit(X_train, Y_train)
     svm_scores = cross_val_score(SVM_clf, X_train, Y_train, cv=10, scoring='f1')
-    print(np.mean(svm_scores))
-    print()
+    print("Average cross validation score: {:.2f}".format(svm_scores.mean())
+    print
     print(svm_scores)
     
     RF_clf = RandomForestClassifier()
     RF_clf.fit(X_train, Y_train)
     RF_scores = cross_val_score(RF_clf, X_train, Y_train, cv=10, scoring='f1')
-    print(np.mean(RF_scores))
-    print()
+    print("Average cross validation score: {:.2f}".format(RF_scores.mean())
+    print
     print(RF_scores) 
     
     ADA_clf = AdaBoostClassifier()
     ADA_clf.fit(X_train, Y_train)
     ADA_scores = cross_val_score(RF_clf, X_train, Y_train, cv=10, scoring='f1')
-    print(np.mean(ADA_scores))
-    print()
+    print("Average cross validation score: {:.2f}".format(ADA_scores.mean())
+    print
     print(ADA_scores)   
     
     ETrees_clf = ExtraTreesClassifier()
     ETrees_clf.fit(X_train, Y_train)
     ETrees_scores = cross_val_score(ETrees_clf, X_train, Y_train, cv=10, scoring='f1')
-    print(np.mean(ETrees_scores))
-    print()
+    print("Average cross validation score: {:.2f}".format(ETrees_scores.mean())
+    print
     print(ETrees_scores)
 
     Gradient_clf = GradientBoostingClassifier()
     Gradient_clf.fit(X_train, Y_train)
     Gradient_scores = cross_val_score(Gradient_clf, X_train, Y_train, cv=10, scoring='f1')
-    print(np.mean(Gradient_scores))
-    print()
+    print("Average cross validation score: {:.2f}".format(Gradient_scores.mean())
+    print
     print(Gradient_scores)  
 
     KNN_clf = KNeighborsClassifier()
     KNN_clf.fit(X_train, Y_train)
     KNN_scores = cross_val_score(KNN_clf, X_train, Y_train, cv=10, scoring='f1')
-    print(np.mean(KNN_scores))
-    print()
+    print("Average cross validation score: {:.2f}".format(KNN_scores.mean())
+    print
     print(KNN_scores)  
 
     Log_clf = log_model = LogisticRegression()
     Log_clf.fit(X_train, Y_train)
     Log_scores = cross_val_score(Log_clf, X_train, Y_train, cv=10, scoring='f1')
-    print(np.mean(Log_scores))
-    print()
+    print("Average cross validation score: {:.2f}".format(Log_scores.mean())
+    print
     print(Log_scores) 
 
     GNB_clf =  GaussianNB()
     GNB_clf.fit(X_train, Y_train)
     GNNB_scores = cross_val_score(GNB_clf, X_train, Y_train, cv=10, scoring='f1')
-    print(np.mean(GNB_scores))
-    print()
+    print("Average cross validation score: {:.2f}".format(GNB_scores.mean())
+    print
     print(GNB_scores)             
 
 #Confirm model on test set
 def test_model():
+    print("Evaluating best performing model on test set")
+    
     svm_predict = SVM_clf.predict(X_test)
-    print()
+    print
     print('F1 Score for top-performing model')
-    print(f1_score(Y_test, svm_predict, average=None))
+    print(f1_score(Y_test, svm_predict, average='binary'))
     print('Classification report for top-performing model')
     print(classification_report(Y_test, svm_predict))
+    
+    mat = confusion_matrix(Y_test, svm_predict)
+    sns.heatmap(mat, square=True, annot=True, cbar=False)
+    plt.xlabel('Predicted Value')
+    plt.ylabel('True Value')
 
 #Execution
 webscraper(url)
@@ -358,10 +354,3 @@ grid_search()
 dummy_model()
 model_evaluation()
 test_model()
-
-    
-
-    
-    
-    
-    
