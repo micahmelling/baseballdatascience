@@ -150,16 +150,16 @@ def data_prep(x):
 #Run univariate feature selection
 def feature_selection(x, y):
     print("Selecting top features.")
-    test = SelectKBest(k = 10)
-    fit = test.fit(x, y)
+    feature_selection = SelectKBest(k = 5)
+    feature_fit = feature_selection.fit(x, y)
 
-    print("Most predictive features.")
-    selected_vars = fit.get_support()
+    vars = feature_fit.get_support()
     cols = X.columns.values.tolist()
-    cols = pd.DataFrame(cols)
-    selected_vars = pd.DataFrame(selected_vars)
-    selected = pd.concat([cols, selected_vars], axis = 1)
-    print (selected)
+    cols = pd.DataFrame(data = cols, columns = ['variable'])
+    vars = pd.DataFrame(data = vars, columns = ['important'])
+    selected = pd.concat([cols, vars], axis = 1)
+    selected = selected[selected.important == True]
+    print(selected)
     return 
 
 #Conduct grid search to optimize hyperparameters
@@ -173,6 +173,8 @@ def grid_search():
     supvec.fit(X_train, Y_train)
     print("Best parameters set found for SVM:")
     print(supvec.best_estimator_)
+    global svm_best_estimator
+    svm_best_estimator = (supvec.best_params_)
     print
     
     print("Optimizing hyperparamters for Random Forest")
@@ -185,6 +187,8 @@ def grid_search():
     rf.fit(X_train, Y_train)
     print("Best parameters set found for Random Forest:")
     print(rf.best_estimator_)
+    global rf_best_estimator
+    rf_best_estimator = (rf.best_params_)
     print
     
     print("Optimizing hyperparamters for AdaBoost")
@@ -195,6 +199,8 @@ def grid_search():
     ada.fit(X_train, Y_train)
     print("Best parameters set found for AdaBoost:")
     print(ada.best_estimator_)
+    global ada_best_estimator
+    ada_best_estimator = (ada.best_params_)
     print
     
     print("Optimizing hyperparamters for Extra Trees")
@@ -203,10 +209,12 @@ def grid_search():
               "max_features": ["auto", "sqrt", "log2"],
               "criterion": ["gini", "entropy"]}
     trees_model = ExtraTreesClassifier()
-    trees = GridSearchCV(ada_model, trees_grid, cv=5, scoring = 'f1')
+    trees = GridSearchCV(trees_model, trees_grid, cv=5, scoring = 'f1')
     trees.fit(X_train, Y_train)
     print("Best parameters set found for Extra Trees:")
     print(trees.best_estimator_)
+    global trees_best_estimator
+    trees_best_estimator = (trees.best_params_)
     print   
     
     print("Optimizing hyperparamters for Gradient Boost")
@@ -215,21 +223,25 @@ def grid_search():
                 "n_estimators": [10, 25, 50, 75, 100, 200],
                 "max_depth": [2, 3, 4, 5, 6]}
     gradient_model = GradientBoostingClassifier()
-    gradient = GridSearchCV(gradient_model, trees_grid, cv=5, scoring = 'f1')
+    gradient = GridSearchCV(gradient_model, gradient_grid, cv=5, scoring = 'f1')
     gradient.fit(X_train, Y_train)
     print("Best parameters set found for Gradient Boosting:")
     print(gradient.best_estimator_)
+    global gradient_best_estimator
+    gradient_best_estimator = (gradient.best_params_)
     print  
            
     print("Optimizing hyperparamters for K Nearest Neighbors Model")   
     knn_grid = {"n_neighbors": [3, 5, 7, 9],
               "weights": ["uniform", "distance"],
-              "metric": ["euclidean", "manhattan", "minkowski", "mahalanobis"]}
+              "metric": ["euclidean", "manhattan", "minkowski"]}
     knn_model = KNeighborsClassifier()
     knn = GridSearchCV(knn_model, knn_grid, cv=5, scoring = 'f1')
     knn.fit(X_train, Y_train)
     print("Best parameters set found for KNN:")
     print(knn.best_estimator_)
+    global knn_best_estimator
+    knn_best_estimator = (knn.best_params_)
     print
     
     print("Optimizing hyperparamters for Logistic Regression Model")
@@ -242,6 +254,8 @@ def grid_search():
     print("Best parameters set found for Logisitc Regression:")
     print
     print(log.best_estimator_)
+    global log_best_estimator
+    log_best_estimator = (log.best_params_)
     
     return
     
@@ -273,59 +287,59 @@ def dummy_model():
 def model_evaluation():
     print("Training and cross validating models")
 
-    SVM_clf = svm.SVC()
+    SVM_clf = svm.SVC(**svm_best_estimator)
     SVM_clf.fit(X_train, Y_train)
     svm_scores = cross_val_score(SVM_clf, X_train, Y_train, cv=10, scoring='f1')
-    print("Average cross validation score: {:.2f}".format(svm_scores.mean())
+    print("Average cross validation score: {:.2f}".format(svm_scores.mean()))
     print
     print(svm_scores)
     
-    RF_clf = RandomForestClassifier()
+    RF_clf = RandomForestClassifier(**rf_best_estimator)
     RF_clf.fit(X_train, Y_train)
     RF_scores = cross_val_score(RF_clf, X_train, Y_train, cv=10, scoring='f1')
-    print("Average cross validation score: {:.2f}".format(RF_scores.mean())
+    print("Average cross validation score: {:.2f}".format(RF_scores.mean()))
     print
     print(RF_scores) 
     
-    ADA_clf = AdaBoostClassifier()
+    ADA_clf = AdaBoostClassifier(**ada_best_estimator)
     ADA_clf.fit(X_train, Y_train)
     ADA_scores = cross_val_score(RF_clf, X_train, Y_train, cv=10, scoring='f1')
-    print("Average cross validation score: {:.2f}".format(ADA_scores.mean())
+    print("Average cross validation score: {:.2f}".format(ADA_scores.mean()))
     print
     print(ADA_scores)   
     
-    ETrees_clf = ExtraTreesClassifier()
+    ETrees_clf = ExtraTreesClassifier(**trees_best_estimator)
     ETrees_clf.fit(X_train, Y_train)
     ETrees_scores = cross_val_score(ETrees_clf, X_train, Y_train, cv=10, scoring='f1')
-    print("Average cross validation score: {:.2f}".format(ETrees_scores.mean())
+    print("Average cross validation score: {:.2f}".format(ETrees_scores.mean()))
     print
     print(ETrees_scores)
 
-    Gradient_clf = GradientBoostingClassifier()
+    Gradient_clf = GradientBoostingClassifier(**gradient_best_estimator)
     Gradient_clf.fit(X_train, Y_train)
     Gradient_scores = cross_val_score(Gradient_clf, X_train, Y_train, cv=10, scoring='f1')
-    print("Average cross validation score: {:.2f}".format(Gradient_scores.mean())
+    print("Average cross validation score: {:.2f}".format(Gradient_scores.mean()))
     print
     print(Gradient_scores)  
 
-    KNN_clf = KNeighborsClassifier()
+    KNN_clf = KNeighborsClassifier(**knn_best_estimator)
     KNN_clf.fit(X_train, Y_train)
     KNN_scores = cross_val_score(KNN_clf, X_train, Y_train, cv=10, scoring='f1')
-    print("Average cross validation score: {:.2f}".format(KNN_scores.mean())
+    print("Average cross validation score: {:.2f}".format(KNN_scores.mean()))
     print
     print(KNN_scores)  
 
-    Log_clf = log_model = LogisticRegression()
+    Log_clf = LogisticRegression(**log_best_estimator)
     Log_clf.fit(X_train, Y_train)
     Log_scores = cross_val_score(Log_clf, X_train, Y_train, cv=10, scoring='f1')
-    print("Average cross validation score: {:.2f}".format(Log_scores.mean())
+    print("Average cross validation score: {:.2f}".format(Log_scores.mean()))
     print
     print(Log_scores) 
 
     GNB_clf =  GaussianNB()
     GNB_clf.fit(X_train, Y_train)
-    GNNB_scores = cross_val_score(GNB_clf, X_train, Y_train, cv=10, scoring='f1')
-    print("Average cross validation score: {:.2f}".format(GNB_scores.mean())
+    GNB_scores = cross_val_score(GNB_clf, X_train, Y_train, cv=10, scoring='f1')
+    print("Average cross validation score: {:.2f}".format(GNB_scores.mean()))
     print
     print(GNB_scores)             
 
