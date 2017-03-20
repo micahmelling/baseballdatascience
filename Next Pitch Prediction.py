@@ -33,7 +33,7 @@ from sklearn.naive_bayes import GaussianNB
 pd.set_option("display.max_columns", 900)
 pd.set_option("display.max_rows", 900)
 
-#Define URL that contains game IDS and the base URL for the pitcher
+#Define URL that contains game IDS
 url = "http://www.brooksbaseball.net/tabs.php?player=592789&p_hand=-1&ppos=-1&cn=200&compType=none&gFilt=&time=month&minmax=ci&var=gl&s_type=2&startDate=03/30/2007&endDate=02/27/2017&balls=-1&strikes=-1&b_hand=-1"
 
 #Scrape the data
@@ -58,7 +58,6 @@ def webscraper(x):
     results1 = [i.split('&prevGame=', 1)[1] for i in game_ids]
     urls = list(map('http://www.brooksbaseball.net/pfxVB/tabdel_expanded.php?pitchSel=592789&game={0}'.format, results1))
     
-
     print("Scraping URLs - this takes a while")    
     results2 = []
     for i in urls:
