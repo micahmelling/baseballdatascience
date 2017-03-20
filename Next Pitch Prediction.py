@@ -1,12 +1,11 @@
-##### Predicting Noah Syndergaard's Pitches #####
+############### Predicting Noah Syndergaard's Pitches ###############
 
 #Import libraries for data ingestion, wrangling, and visualization
 from bs4 import BeautifulSoup
 import requests
 import pandas as pd
-import numpy as np
+import operator
 import seaborn as sns
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 #Import libraries for data pre-processing, machine learning, and model evaluation
@@ -286,7 +285,24 @@ def dummy_model():
 #Evaluate models using cross-validation
 def model_evaluation():
     print("Training and cross validating models")
-
+    
+    global SVM_clf
+    global RF_clf
+    global ADA_clf
+    global ETrees_clf
+    global Gradient_clf
+    global KNN_clf
+    global Log_clf
+    global GNB_clf
+    global svm_scores
+    global RF_scores
+    global ADA_scores
+    global ETrees_scores
+    global Gradient_scores
+    global KNN_scores
+    global Log_scores
+    global GNB_scores
+    
     SVM_clf = svm.SVC(**svm_best_estimator)
     SVM_clf.fit(X_train, Y_train)
     svm_scores = cross_val_score(SVM_clf, X_train, Y_train, cv=10, scoring='f1')
@@ -341,23 +357,141 @@ def model_evaluation():
     GNB_scores = cross_val_score(GNB_clf, X_train, Y_train, cv=10, scoring='f1')
     print("Average cross validation score: {:.2f}".format(GNB_scores.mean()))
     print
-    print(GNB_scores)             
+    print(GNB_scores)  
+
+#Extract best-performing model
+def best_model():
+    global best_predictor 
+    scores = [('SVM_clf', svm_scores.mean()), ('RF_clf', RF_scores.mean()), 
+              ('ADA_clf', ADA_scores.mean()), ('ETrees_clf', ETrees_scores.mean()), 
+              ('Gradient_clf', Gradient_scores.mean()), ('KNN_clf', KNN_scores.mean()),
+              ('Log_clf', Log_scores.mean()), ('GNB_clf', GNB_scores.mean())]
+              
+    best_predictor = max(scores, key=operator.itemgetter(1))
+    print('Best performing model is:')
+    print(best_predictor)           
 
 #Confirm model on test set
 def test_model():
-    print("Evaluating best performing model on test set")
+    if 'SVM_clf' == (best_predictor)[0]:
+        print("Evaluating best performing model, Support Vector Machine, on test set")
     
-    svm_predict = SVM_clf.predict(X_test)
-    print
-    print('F1 Score for top-performing model')
-    print(f1_score(Y_test, svm_predict, average='binary'))
-    print('Classification report for top-performing model')
-    print(classification_report(Y_test, svm_predict))
+        svm_predict = SVM_clf.predict(X_test)
+        print
+        print('F1 Score for top-performing model')
+        print(f1_score(Y_test, svm_predict, average='binary'))
+        print('Classification report for top-performing model')
+        print(classification_report(Y_test, svm_predict))
     
-    mat = confusion_matrix(Y_test, svm_predict)
-    sns.heatmap(mat, square=True, annot=True, cbar=False)
-    plt.xlabel('Predicted Value')
-    plt.ylabel('True Value')
+        mat = confusion_matrix(Y_test, svm_predict)
+        sns.heatmap(mat, square=True, annot=True, cbar=False)
+        plt.xlabel('Predicted Value')
+        plt.ylabel('True Value')
+        
+    if 'RF_clf' == (best_predictor)[0]:
+        print("Evaluating best performing model, Random Forest, on test set")
+    
+        rf_predict = RF_clf.predict(X_test)
+        print
+        print('F1 Score for top-performing model')
+        print(f1_score(Y_test, rf_predict, average='binary'))
+        print('Classification report for top-performing model')
+        print(classification_report(Y_test, svm_predict))
+    
+        mat = confusion_matrix(Y_test, rf_predict)
+        sns.heatmap(mat, square=True, annot=True, cbar=False)
+        plt.xlabel('Predicted Value')
+        plt.ylabel('True Value')
+
+    if 'ADA_clf' == (best_predictor)[0]:
+        print("Evaluating best performing model, ADA Boost, on test set")
+    
+        ada_predict = ADA_clf.predict(X_test)
+        print
+        print('F1 Score for top-performing model')
+        print(f1_score(Y_test, ada_predict, average='binary'))
+        print('Classification report for top-performing model')
+        print(classification_report(Y_test, ada_predict))
+    
+        mat = confusion_matrix(Y_test, ada_predict)
+        sns.heatmap(mat, square=True, annot=True, cbar=False)
+        plt.xlabel('Predicted Value')
+        plt.ylabel('True Value')
+
+    if 'ETrees_clf' == (best_predictor)[0]:
+        print("Evaluating best performing model, Extra Trees, on test set")
+    
+        etrees_predict = ETrees_clf.predict(X_test)
+        print
+        print('F1 Score for top-performing model')
+        print(f1_score(Y_test, etrees_predict, average='binary'))
+        print('Classification report for top-performing model')
+        print(classification_report(Y_test, etrees_predict))
+    
+        mat = confusion_matrix(Y_test, etrees_predict)
+        sns.heatmap(mat, square=True, annot=True, cbar=False)
+        plt.xlabel('Predicted Value')
+        plt.ylabel('True Value')
+        
+    if 'Gradient_clf' == (best_predictor)[0]:
+        print("Evaluating best performing model, Gradient Boosting, on test set")
+    
+        gradient_predict = Gradient_clf.predict(X_test)
+        print
+        print('F1 Score for top-performing model')
+        print(f1_score(Y_test, gradient_predict, average='binary'))
+        print('Classification report for top-performing model')
+        print(classification_report(Y_test, gradient_predict))
+    
+        mat = confusion_matrix(Y_test, gradient_predict)
+        sns.heatmap(mat, square=True, annot=True, cbar=False)
+        plt.xlabel('Predicted Value')
+        plt.ylabel('True Value')
+        
+    if 'KNN_clf' == (best_predictor)[0]:
+        print("Evaluating best performing model, K Nearest Neighbors, on test set")
+    
+        knn_predict = KNN_clf.predict(X_test)
+        print
+        print('F1 Score for top-performing model')
+        print(f1_score(Y_test, knn_predict, average='binary'))
+        print('Classification report for top-performing model')
+        print(classification_report(Y_test, knn_predict))
+    
+        mat = confusion_matrix(Y_test, knn_predict)
+        sns.heatmap(mat, square=True, annot=True, cbar=False)
+        plt.xlabel('Predicted Value')
+        plt.ylabel('True Value')
+
+    if 'Log_clf' == (best_predictor)[0]:
+        print("Evaluating best performing model, Logistic Regression, on test set")
+    
+        log_predict = Log_clf.predict(X_test)
+        print
+        print('F1 Score for top-performing model')
+        print(f1_score(Y_test, log_predict, average='binary'))
+        print('Classification report for top-performing model')
+        print(classification_report(Y_test, log_predict))
+    
+        mat = confusion_matrix(Y_test, log_predict)
+        sns.heatmap(mat, square=True, annot=True, cbar=False)
+        plt.xlabel('Predicted Value')
+        plt.ylabel('True Value')
+        
+    if 'GNB_clf' == (best_predictor)[0]:
+        print("Evaluating best performing model, Naive Bayes, on test set")
+    
+        gnb_predict = GNB_clf.predict(X_test)
+        print
+        print('F1 Score for top-performing model')
+        print(f1_score(Y_test, gnb_predict, average='binary'))
+        print('Classification report for top-performing model')
+        print(classification_report(Y_test, gnb_predict))
+    
+        mat = confusion_matrix(Y_test, gnb_predict)
+        sns.heatmap(mat, square=True, annot=True, cbar=False)
+        plt.xlabel('Predicted Value')
+        plt.ylabel('True Value')
 
 #Execution
 webscraper(url)
@@ -367,4 +501,6 @@ feature_selection(X_train, Y_train)
 grid_search()
 dummy_model()
 model_evaluation()
+best_model()
 test_model()
+##############################################################################
