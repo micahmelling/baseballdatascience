@@ -1,8 +1,8 @@
-#Working file
-
 #To-do list
 #Add runners
-#Add walks in the runner equation
+
+#This code works, though a walk does advance every runner,
+#regardless of their location on the base path.
 
 import numpy as np
 
@@ -28,6 +28,7 @@ signald = 'n'
 signale = 'n'
 useless_counter = 1
 hit1 = 'n'
+walk = 'n'
 
 runnerg = 0
 runnerf = 0
@@ -51,10 +52,8 @@ def home_run_outcome():
         runs +=1
         print('batter smacks a home run! team has now scored %s run' % (runs))
         
-
 def hitter_action():
     global hit1
-  
     hit1 = np.random.choice(hit, 1, p=[0.15, 0.15, 0.2, 0.1, 0.2, 0.2]) 
     print('hitter outcome: %s' % (hit1))
     return hit1
@@ -64,8 +63,7 @@ def play_outcome():
     
     outcome1 = np.random.choice(outcome, 1, p=[0.30, 0.20, 0.10, 0.4])
     print('play_outcome: %s' % (outcome1))
-
-    
+  
     if outcome1 == 'out':
         global outs
         outs += 1
@@ -100,9 +98,9 @@ def runner1():
     global runnera 
     global hit1_counter
     
-    if outcome1 == 'single':
+    if outcome1 == 'single' or walk == 'true':
         runnera += 1
-        print('single! first runner goes to first')  
+        print('single or walk; first runner goes to first')  
         hit1_counter = 'a'
         
     elif outcome1 == 'double':
@@ -120,10 +118,10 @@ def runner2():
     global runnera
     global hit1_counter
  
-    if outcome1 == 'single':
+    if outcome1 == 'single' or walk == 'true':
         runnerb += 1
         runnera += 1
-        print('single! second runner goes to first')  
+        print('single or walk; second runner goes to first')  
         hit1_counter = 'b'
         
     elif outcome1 == 'double':
@@ -137,6 +135,7 @@ def runner2():
         runnera += 3
         print('triple! second runner goes to third')
         hit1_counter = 'b'
+    
           
 def runner3():
     global runnerc
@@ -144,11 +143,11 @@ def runner3():
     global runnera
     global hit1_counter
     
-    if outcome1 == 'single':
+    if outcome1 == 'single' or walk == 'true':
         runnerc += 1
         runnerb += 1
         runnera += 1
-        print('single! third runner goes to first')  
+        print('single or walk; third runner goes to first')  
         hit1_counter = 'c'
         
     elif outcome1 == 'double':
@@ -172,12 +171,12 @@ def runner4():
     global runnera
     global hit1_counter
     
-    if outcome1 == 'single':
+    if outcome1 == 'single' or walk == 'true':
         runnerd += 1
         runnerc += 1
         runnerb += 1
         runnera += 1
-        print('single! fourth runner goes to first')  
+        print('single or walk; fourth runner goes to first')  
         hit1_counter = 'd'
         
     elif outcome1 == 'double':
@@ -204,13 +203,13 @@ def runner5():
     global runnera
     global hit1_counter
     
-    if outcome1 == 'single':
+    if outcome1 == 'single' or walk == 'true':
         runnere += 1
         runnerd += 1
         runnerc += 1
         runnerb += 1
         runnera += 1
-        print('single! fifth runner goes to first')  
+        print('single or walk; fifth runner goes to first')  
         hit1_counter = 'e'
         
     elif outcome1 == 'double':
@@ -240,14 +239,14 @@ def runner6():
     global runnera
     global hit1_counter
     
-    if outcome1 == 'single':
+    if outcome1 == 'single' or walk == 'true':
         runnerf += 1
         runnere += 1
         runnerd += 1
         runnerc += 1
         runnerb += 1
         runnera += 1
-        print('single! sixth runner goes to first')  
+        print('single or walk; sixth runner goes to first')  
         hit1_counter = 'f'
         
     elif outcome1 == 'double':
@@ -280,7 +279,7 @@ def runner7():
     global runnera
     global hit1_counter
     
-    if outcome1 == 'single':
+    if outcome1 == 'single' or walk == 'true':
         runnerg += 1
         runnerf += 1
         runnere += 1
@@ -288,7 +287,7 @@ def runner7():
         runnerc += 1
         runnerb += 1
         runnera += 1
-        print('single! seventh runner goes to first')  
+        print('single or walk; seventh runner goes to first')  
         
     elif outcome1 == 'double':
         runnerg += 2
@@ -410,14 +409,16 @@ def reset_strikes():
 def ball_recorded():
     outcome1 == 'ball recorded'
     global balls
+    global walk
     balls += 1
     
-    if balls < 4:
+    if balls in (1, 2, 3, 4):
+        walk = 'false'
         print('pitch was a ball; number of balls: %s' % (balls))
         
-    else:
+    elif balls == 4:
+        walk = 'true'
         balls = 0
-        print('walk! runner goes to first')
     
 def reset_balls():
     global balls
@@ -436,7 +437,7 @@ def hit_outcomes():
         
     elif hit1 == 'ball':
         ball_recorded()
-                   
+                           
 def inning():   
     home_run_outcome()    
     
@@ -447,8 +448,7 @@ def inning():
         pitch_thrown()
         hitter_action()
         hit_outcomes()
-    
-      
+         
 while outs < 3:
     inning()   
     print
