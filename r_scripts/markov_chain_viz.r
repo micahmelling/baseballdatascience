@@ -1,5 +1,3 @@
-setwd("C:/Users/Micah/Desktop/Baseball Data Science/Markov Chain")
-
 # Library imports
 library(ggplot2)
 library(ggpubr)
