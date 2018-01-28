@@ -1,5 +1,4 @@
 # Library imports
-setwd("C:/Users/Micah/Desktop/Baseball Data Science")
 
 library(ggplot2)
 library(MASS)
