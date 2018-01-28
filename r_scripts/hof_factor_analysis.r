@@ -1,7 +1,5 @@
 # Factor analysis on offensive statistics for HoFers
 
-setwd("C:/Users/Micah/Desktop/Baseball Data Science/Factor Analysis on HoF Stats")
-
 # Library imports
 library(nFactors)
 library(gplots)
