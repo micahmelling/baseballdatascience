@@ -1,7 +1,5 @@
 # HoF text mining
 # Load libraries
-setwd("C:/Users/Micah/Desktop/Baseball Data Science/Text Mining on HoF Speeches")
-
 library(quanteda)
 library(tm)
 library(data.table)
