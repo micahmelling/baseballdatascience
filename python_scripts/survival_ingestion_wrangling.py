@@ -1,10 +1,10 @@
-# https://www.cscu.cornell.edu/news/statnews/stnews67.pdf
+# Citation: https://www.cscu.cornell.edu/news/statnews/stnews67.pdf
+
 # Library imports
-import os
-os.chdir('C:\Users\Micah\Desktop\Baseball Data Science\\Career Length Survival Analysis')
 import pymysql.cursors
 import pandas as pd
 from datetime import datetime
+
 
 # Database connection
 connection = pymysql.connect(host='localhost',
@@ -13,21 +13,25 @@ connection = pymysql.connect(host='localhost',
                              db='lahman2016',
                              charset='utf8mb4',
                              cursorclass=pymysql.cursors.DictCursor)
-                             
-# SQL queries
-master_query = '''
-SELECT * from master;'''
- 
-pitching_query = '''
-SELECT sum(GS), playerID from pitching group by playerID;''' 
+  
+  
+# Data ingestion
+def ingest_data():
+    master_query = '''
+    SELECT * from master;'''
 
-salaries_query = '''
-SELECT yearID, salary, playerID from salaries;'''
+    pitching_query = '''
+    SELECT sum(GS), playerID from pitching group by playerID;''' 
 
-master = pd.read_sql(master_query, connection)     
-pitching = pd.read_sql(pitching_query, connection)    
-salaries = pd.read_sql(salaries_query, connection)  
+    salaries_query = '''
+    SELECT yearID, salary, playerID from salaries;'''
 
+    master = pd.read_sql(master_query, connection)     
+    pitching = pd.read_sql(pitching_query, connection)    
+    salaries = pd.read_sql(salaries_query, connection)  
+    return master, pitching, salaries
+
+  
 def data_cleaning(master, pitching, salaries):
     # Put salaries in 2016 dollars
     inflation = pd.read_csv('inflation_conversion.csv')
@@ -55,7 +59,6 @@ def data_cleaning(master, pitching, salaries):
     df = df.loc[df['sum(GS)'] == 0]
     return df
 
-df = data_cleaning(master, pitching, salaries)
 
 # Mark current players as being censored
 def prep_data_for_survival_analysis(df):
@@ -105,6 +108,10 @@ def prep_data_for_survival_analysis(df):
                   'time_in_mlb', 'status']
     return df
 
-df = prep_data_for_survival_analysis(df)
-df.to_csv('player_data_for_survival_analysis.csv', index = False)
+  
+if __name__ == "__main__":
+    master, pitching, salaries = ingest_data()
+    df = data_cleaning(master, pitching, salaries)
+    df = prep_data_for_survival_analysis(df)
+    df.to_csv('player_data_for_survival_analysis.csv', index = False)
                             
