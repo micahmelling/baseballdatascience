@@ -1,0 +1,505 @@
+# Rookie All-Star Modeling
+The goal of this project is twofold: 1) predict if a player will become an all-star based on their rookie offensive stats and 2) determine clusters of rookies.
+
+At the end of the day, this is a fairly limited analysis, though we can see some interesting
+patterns in the data. 
+
+```{r message=FALSE}
+options(warn=-1)
+setwd("C:/Users/Micah/Desktop/applied_data_mining")
+set.seed(19)
+
+library(ggplot2)
+library(lattice)
+library(caret)
+library(pROC)
+library(plyr)
+library(rpart)
+library(rattle)
+library(cluster)
+library(data.table)
+library(MASS)
+library(colorRamps)
+library(nFactors)
+library(gplots)
+library(RColorBrewer)
+library(semPlot)
+library(waffle)
+library(extrafont)
+
+font_import()
+
+
+```
+
+# Cleaning Functions
+```{r}
+subset_to_rookie_year <- function(df){
+  # Define rookie season as first yearID in which player had more than 100 ABs.
+  df[, 'yearID'] <- sapply(df[, 'yearID'], as.numeric)
+  eligible_df <- df[ which(df$AB > 100), ]
+  rookie_df <- aggregate(eligible_df$yearID, by=list(eligible_df$playerID), min)
+  colnames(rookie_df) <- c('playerID', 'yearID')
+  df <- merge(df, rookie_df, by=c('playerID', 'yearID'))
+  df <- df[!duplicated(df$playerID),]
+  # For simplicity, remove small number of players with 100+ ABs for two teams 
+  # in their rookie season. 
+  df <- df[ which(df$AB > 100), ]
+  return(df)
+}
+
+
+# Only use the last few decades of players.
+# Do not use players who are too recent - they may still become all-stars. 
+subset_to_between_1970_and_2010 <- function(df){
+  df <- df[ which(df$yearID >= 1970 & df$yearID <= 2010), ]
+  return(df)
+}
+
+
+count_all_star_appearances <- function(all_stars, batting){
+  all_star_temp <- all_stars[,c('playerID', 'yearID')]
+  all_star_temp$rookie_all_star_appearance <- 'yes'
+  batting <- merge(batting, all_star_temp, by=c('playerID', 'yearID'), all.x=TRUE)
+  batting$rookie_all_star_appearance[is.na(batting$rookie_all_star_appearance)] <- 'no'
+  
+  batting$rookie_id <- 'yes'
+  all_stars_non_rookie <- merge(all_stars, batting, by=c('playerID', 'yearID'), all.x=TRUE)
+  all_stars_non_rookie$rookie_id[is.na(all_stars_non_rookie$rookie_id)] <- 'no'
+  all_stars_non_rookie <- all_stars_non_rookie[ which(all_stars_non_rookie$rookie_id == 'no'), ]
+  
+  all_stars_non_rookie <- all_stars_non_rookie[c('playerID')]
+  all_stars_non_rookie <- as.data.frame(table(all_stars_non_rookie))
+  colnames(all_stars_non_rookie) <- c('playerID', 'all_star')
+  
+  merged_df <- merge(batting, all_stars_non_rookie, by='playerID', all.x=TRUE)
+  merged_df$all_star[merged_df$all_star > 0] <- "yes"
+  merged_df$all_star[merged_df$all_star != 'yes'] <- "no"
+  merged_df$all_star[is.na(merged_df$all_star)] <- 'no'
+  return(merged_df)
+}
+
+
+create_name_to_id_mapping <- function(df){
+  df$playerName <- paste(df$nameFirst, ' ', df$nameLast)
+  df <- df[c('playerID', 'playerName')]
+  return(df)
+}
+
+
+calculate_slg_obp_obp_and_avg <- function(df){
+  df[is.na(df)] <- 0
+  df$avg <- df$H / df$AB
+  df$obp <- (df$H + df$BB + df$HBP) / (df$AB + df$BB + df$HBP + df$SF)
+  df$slg <- (df$H + (df$X2B + df$X3B + df$HR) + (df$X2B * 2) + 
+              (df$X3B * 3 + df$HR * 4)) / df$AB
+  df[is.na(df)] <- 0
+  return(df)
+}
+
+
+select_columns_for_modeling <- function(df){
+  df <- subset(df, select=c(G, AB, R, H, X2B, X3B, HR, RBI, SB, BB, SO, avg, obp, slg, 
+                            all_star, playerID))
+  return(df)
+}
+
+
+drop_player_id <- function(df){
+  drop <- c('playerID')
+  df <- df[ , !(names(df) %in% drop)]
+  return(df)
+}
+
+```
+
+## Exploration Functions
+```{r}
+count_factor_occurrences_by_target <- function(df, feature, target, title){
+  print(ggplot(df, aes_string(feature, fill = target)) +
+          geom_bar() + ggtitle(title))
+}
+
+
+make_histogram_by_target <- function(df, feature, target, title, bins){
+  print(ggplot(df, aes_string(feature, fill = target)) +
+          geom_histogram(binwidth = bins) + ggtitle(title))
+}
+
+
+make_parallel_coordinates <- function(df, feature, cuts){
+  c <- blue2red(cuts)
+  r <- cut(feature, cuts)
+  parcoord(df, col=c[as.numeric(r)])
+}
+
+```
+
+## Factor Analysis Functions
+```{r}
+make_scree_table_for_factor_analysis <- function(df){
+  nScree(df)
+}
+
+
+get_eigenvalues <- function(df){
+  eigen(cor(df))
+}
+
+
+build_factor_analysis_model <- function(df, n_factors){
+  fa <- factanal(df, factors = n_factors, lower = 0.01)
+  print(fa)
+  return(fa)
+}
+
+
+make_factor_analysis_heatmp <- function(fa){
+  heatmap.2(fa$loadings, col = brewer.pal(9, "Greens"), trace = "none",
+            key = FALSE, dend = 'none', Colv = FALSE, cexCol = 1.2,
+            main = "Factor Loadings")
+}
+
+
+make_factor_analysis_sem_plot <- function(fa){
+  semPaths(fa, what = "est", residuals = FALSE, cut = 0.4,
+           posCol = c("white", "darkgreen"), 
+           negCol = c("white", "red"),
+           edge.label.cex = 0.60, nCharNodes = 7)
+}
+
+```
+
+## Supervised Machine Learning Functions
+```{r}
+train_random_forest <- function(train_df, target){
+  control <- trainControl(method="repeatedcv", number=3, repeats=3, classProbs=TRUE)
+  mtry <- c(sqrt(ncol(train_df)), log2(ncol(train_df)))
+  grid <- expand.grid(.mtry=mtry)
+  formula <- as.formula(paste(target, "~ ."))
+  
+  model <- train(formula, 
+                 data=train_df, 
+                 preProcess=c("center", "scale"),
+                 method="rf", 
+                 metric="ROC",
+                 trControl=control, 
+                 tuneGrid=grid,
+                 allowParallel=TRUE,
+                 num.threads=4)
+  return(model)
+}
+
+
+train_log_reg <- function(train_df, target){
+  control <- trainControl(method="repeatedcv", number=10, repeats=3, classProbs=TRUE)
+  grid <- expand.grid(parameter=c(0.001, 0.01, 0.1, 1,10, 100))
+  formula <- as.formula(paste(target, "~ ."))
+  
+  model <- train(formula, 
+                 data=train_df, 
+                 preProcess=c("center", "scale"),
+                 method="glm", 
+                 family="binomial", 
+                 metric="ROC",
+                 trControl=control, 
+                 tuneGrid=grid)
+  
+  return(model)
+}
+
+
+train_decision_tree <- function(train_df, target){
+  control <- trainControl(method="repeatedcv", number=10, repeats=3, classProbs=TRUE)
+  grid <- expand.grid(.maxdepth=c(3, 5, 7, 10))
+  formula <- as.formula(paste(target, "~ ."))
+  
+  model <- train(formula, 
+                 data=train_df, 
+                 preProcess=c("center", "scale"),
+                 method="rpart2", 
+                 metric="ROC",
+                 trControl=control, 
+                 tuneGrid=grid)
+  return(model)
+}
+
+
+train_gradient_boosting <- function(train_df, target){
+  control <- trainControl(method="repeatedcv", number=10, repeats=3, classProbs=TRUE)
+  grid <- expand.grid(interaction.depth = c(1, 3, 5), 
+              n.trees = c(50, 100, 150), 
+              shrinkage = 0.1,
+              n.minobsinnode = 20)
+  
+  formula <- as.formula(paste(target, "~ ."))
+  
+  model <- train(formula, 
+                 data=train_df, 
+                 preProcess=c("center", "scale"),
+                 method="gbm", 
+                 metric="ROC",
+                 verbose=F,
+                 trControl=control, 
+                 tuneGrid=grid)
+  return(model)
+}
+
+
+plot_decision_tree <- function(df, target, depth){
+  formula <- as.formula(paste(target, "~ ."))
+  set.seed(19)
+  tree <- rpart(formula, method="class", maxdepth=depth, data=df)
+  printcp(tree)
+  print(tree)
+  fancyRpartPlot(tree)
+}
+
+
+plot_model <- function(model){
+  plot(model)
+}
+
+
+print_grid_search_results <- function(model){
+  model$bestTune
+  results <- model$results
+  results 
+}
+
+
+print_confusion_matrix <- function(model, df, target){
+  predictions <- predict(model, df)
+  con_matrix <- confusionMatrix(predictions, target, positive = 'yes')   
+  con_matrix
+}
+
+
+get_roc_auc <- function(model, df, target){
+  probabilities <- predict(model, df, type="prob")
+  
+  ROC <- roc(predictor=probabilities$yes,
+             response=target)
+  print(ROC$auc)
+  plot(ROC, main="ROC")
+  return(ROC)
+}
+
+
+get_variable_importances <- function(model){
+  varImp(model)
+}
+
+```
+
+## Unsupervised Machine Learning Functions
+```{r}
+scale_dataframe <- function(df){
+  df[, -c(3)] <- scale(df[, -c(3)])
+  df <- data.frame(df)
+  return(df)
+}
+
+
+plot_within_cluster_sum_of_squares <- function(df, title){
+  wss <- (nrow(df)-1) * sum(apply(df, 2, var))
+  for (i in 2:15) wss[i] <- sum(kmeans(df, centers=i)$withinss)
+  plot(1:15, wss, type="b", xlab="Number of Clusters",
+       ylab="Within groups sum of squares", main = paste(title,' elbow plot'))
+}
+
+
+train_k_means_model <- function(df, k){
+  set.seed(19)
+  model <- kmeans(df, k, nstart=25)
+  return(model)
+}
+
+
+plot_k_means_model <- function(model, df, title){
+  clusplot(df, model$cluster, color=TRUE, shade=TRUE,
+           labels=2, lines=0, main = paste(title,' PCA Plot of K-Means'))
+}
+
+
+create_hclust_and_plot <- function(df){
+  set.seed(19)
+  dm = dist(df,method="euclidean")
+  hclust_model <- hclust(dm, method="complete")
+  plot(hclust_model)
+  return(hclust_model)
+}
+
+
+summarize_clusters <- function(df){
+  cluster1 <- df[which(df$k_means.cluster=='1'),]
+  cluster2 <- df[which(df$k_means.cluster=='2'),]
+  cluster3 <- df[which(df$k_means.cluster=='3'),]
+  
+  print('cluster 1 summary')
+  print(summary(cluster1))
+  print('cluster 2 summary')
+  print(summary(cluster2))
+  print('cluster 3 summary')
+  print(summary(cluster3))
+}
+
+```
+
+## Execution
+
+### Read in data
+```{r}
+all_star_df <- read.csv('data/AllstarFull.csv')
+batting_df <- read.csv('data/Batting.csv')
+people_df <- read.csv('data/People.csv')
+
+```
+
+### Data cleaning
+```{r}
+batting_df <- subset_to_rookie_year(batting_df)
+batting_df <- subset_to_between_1970_and_2010(batting_df)
+batting_df <- count_all_star_appearances(all_star_df, batting_df)
+batting_df <- calculate_slg_obp_obp_and_avg(batting_df)
+batting_df <- select_columns_for_modeling(batting_df)
+batting_df_copy <- batting_df
+batting_df <- drop_player_id(batting_df)
+
+```
+
+### Data Exploration
+```{r}
+agg_cols_for_hist <- c('G', 'H', 'X2B', 'HR', 'RBI', 'SB')
+for (column in agg_cols_for_hist){
+  make_histogram_by_target(batting_df, column, 'all_star', 
+                           paste(column,' histogram by all star'), 10)
+}
+
+rate_cols_for_hist <- c('avg', 'obp', 'slg')
+for (column in rate_cols_for_hist){
+  make_histogram_by_target(batting_df, column, 'all_star', 
+                           paste(column,' histogram by all star'), .1)
+}
+
+# home runs paralell coordinates
+make_parallel_coordinates(batting_df[1:14], batting_df$HR, 20)
+# obp paralell coordinates
+make_parallel_coordinates(batting_df[1:14], batting_df$obp, 20)
+# hits paralell coordinates
+make_parallel_coordinates(batting_df[1:14], batting_df$H, 20)
+# slg paralell coordinates
+make_parallel_coordinates(batting_df[1:14], batting_df$slg, 20)
+
+```
+
+## Factor Analysis
+```{r}
+make_scree_table_for_factor_analysis(batting_df[1:14])
+get_eigenvalues(batting_df[1:14])
+batting_factor_analysis <- build_factor_analysis_model(batting_df[1:14], 3)
+make_factor_analysis_heatmp(batting_factor_analysis)
+make_factor_analysis_sem_plot(batting_factor_analysis)
+
+```
+
+### Classification Models
+### Class Imbalance
+```{r}
+# This is not perfectly to scale but close enough to be useful. 
+waffle(c(all_star = 52, non_all_star = 233), rows = 19, 
+       title = "Target Distribution")
+
+```
+
+
+#### Train-Test Splits
+```{r}
+partition <- createDataPartition(batting_df$all_star, p = 0.7, list=FALSE)
+train_df <- batting_df[partition, ]
+test_df <- batting_df[-partition, ]
+
+```
+
+#### Decision Tree
+```{r}
+decision_tree <- train_decision_tree(train_df, 'all_star')
+plot_model(decision_tree)
+print_grid_search_results(decision_tree)
+print_confusion_matrix(decision_tree, test_df, test_df$all_star)
+tree_roc <- get_roc_auc(decision_tree, test_df, test_df$all_star)
+plot_decision_tree(train_df, 'all_star', 3)
+
+```
+
+#### Random Forest
+```{r message=FALSE}
+random_forest <- train_random_forest(train_df, 'all_star')
+plot_model(random_forest)
+print_grid_search_results(random_forest)
+print_confusion_matrix(random_forest, test_df, test_df$all_star)
+forest_roc <- get_roc_auc(random_forest, test_df, test_df$all_star)
+get_variable_importances(random_forest)
+
+```
+
+#### Gradient Boosting
+```{r message=FALSE}
+gradient_boosting <- train_gradient_boosting(train_df, 'all_star')
+plot_model(gradient_boosting)
+print_grid_search_results(gradient_boosting)
+print_confusion_matrix(gradient_boosting, test_df, test_df$all_star)
+gb_roc <- get_roc_auc(gradient_boosting, test_df, test_df$all_star)
+get_variable_importances(gradient_boosting)
+
+```
+
+#### Logistic Regression
+```{r}
+log_reg <- train_log_reg(train_df, 'all_star')
+print_grid_search_results(log_reg)
+print_confusion_matrix(log_reg, test_df, test_df$all_star)
+lr_roc <- get_roc_auc(log_reg, test_df, test_df$all_star)
+
+```
+
+## Clustering
+### Data Preparation
+```{r}
+rownames(batting_df_copy) <- batting_df_copy$playerID
+batting_df_copy <- subset(batting_df_copy, select=-c(playerID, all_star))
+batting_df_scaled <- scale_dataframe(batting_df_copy)
+
+```
+
+### K-Means Clustering
+```{r}
+plot_within_cluster_sum_of_squares(batting_df_scaled, 'rookie batting data')
+k_means <- train_k_means_model(batting_df_scaled, 3)
+plot_k_means_model(k_means, batting_df_scaled, 'rookie batting')
+batting_df_copy <- data.frame(batting_df_copy, k_means$cluster)
+summarize_clusters(batting_df_copy)
+batting_df_copy$k_means.cluster <- as.factor(batting_df_copy$k_means.cluster)
+
+agg_summary_cols <- c('G', 'AB', 'R', 'H', 'X2B', 'X3B', 'HR', 'RBI', 'SB')
+for (column in agg_summary_cols){
+  make_histogram_by_target(batting_df_copy, column, 'k_means.cluster', 
+                           paste(column,' histogram by cluster'), 10)
+}
+
+rate_summary_cols <- c('avg', 'obp', 'slg')
+for (column in rate_summary_cols){
+  make_histogram_by_target(batting_df_copy, column, 'k_means.cluster', 
+                           paste(column,' histogram by cluster'), .1)
+}
+
+```
+
+### Heirarchical Clustering
+```{r}
+hclust_model <- create_hclust_and_plot(batting_df_scaled)
+plot(cut(as.dendrogram(hclust_model), h=8)$lower[[4]])
+plot(cut(as.dendrogram(hclust_model), h=6)$lower[[15]])
+
+```
+
